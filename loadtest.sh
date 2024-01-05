@@ -3,13 +3,13 @@
 # Kafka Producer Performance Test
 # Kafka Producer Performance Test Parameters
 TOPIC="pubnub"
-NUM_RECORDS=50000
-RECORD_SIZE=100
-THROUGHPUT=-1 # No limit
-BROKER_ADDRESS="kafka:9092"
+NUM_RECORDS=50
+RECORD_SIZE=10
+THROUGHPUT=5
+BROKER_ADDRESS="PLAINTEXT://kafka:29092"
 
 # Run the Kafka Producer Performance Test
-docker exec -it kafka kafka-producer-perf-test.sh \
+docker exec -it producer kafka-producer-perf-test \
 --topic $TOPIC \
 --num-records $NUM_RECORDS \
 --record-size $RECORD_SIZE \

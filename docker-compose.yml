@@ -38,6 +38,11 @@ services:
       test: nc -zv kafka 9092 || exit 1
       interval: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
   connect:
     image: confluentinc/cp-kafka-connect-base:7.3.1
@@ -81,7 +86,11 @@ services:
       interval: 5s
       retries: 10
       test: curl --write-out 'HTTP %{http_code}' --fail --silent --output /dev/null http://localhost:8083
-
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
   builder:
     image: maven:3.8-openjdk-18
     hostname: builder
@@ -90,24 +99,24 @@ services:
       - .:/usr/share/java/kafka-connector-pubnub
     command: "bash -c 'cd /usr/share/java/kafka-connector-pubnub; mvn clean package'"
 
-  producer:
-    image: confluentinc/cp-kafka:7.3.1
-    hostname: producer
-    container_name: producer
-    command:
-      - /bin/sh
-      - -c
-      - |
-        while true
-          do echo '{"timestamp":'$(date +%s)'}' | \
-            /usr/bin/kafka-console-producer \
-            --bootstrap-server kafka:29092 \
-            --topic pubnub
-          sleep 0.001
-        done
-    depends_on:
-      kafka:
-        condition: service_healthy
+#  producer:
+#    image: confluentinc/cp-kafka:7.3.1
+#    hostname: producer
+#    container_name: producer
+#    command:
+#      - /bin/sh
+#      - -c
+#      - |
+#        while true
+#          do echo '{"timestamp":'$(date +%s)'}' | \
+#            /usr/bin/kafka-console-producer \
+#            --bootstrap-server kafka:29092 \
+#            --topic pubnub
+#          sleep 1
+#        done
+#    depends_on:
+#      kafka:
+#        condition: service_healthy
   consumer:
     image: confluentinc/cp-kafka:7.3.1
     hostname: consumer
