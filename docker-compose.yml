@@ -3,7 +3,7 @@ version: '3'
 
 services:
   kafka:
-    image: confluentinc/cp-enterprise-kafka:7.3.1
+    image: confluentinc/cp-kafka:7.3.1
     hostname: kafka
     container_name: kafka
     ports:
@@ -23,26 +23,16 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
-      KAFKA_METRIC_REPORTERS: "io.confluent.metrics.reporter.ConfluentMetricsReporter"
-      KAFKA_CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: 'PLAINTEXT://kafka:29092'
-      KAFKA_CONFLUENT_METRICS_REPORTER_TOPIC: '_confluent-metrics'
-      KAFKA_CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
-      KAFKA_CONFLUENT_METRICS_REPORTER_ENABLED: 'true'
       KAFKA_OPTS: "-javaagent:/opt/kafka/libs/jmx_prometheus_javaagent-0.20.0.jar=7071:/opt/kafka/config/jmx_exporter_config_kafka.yml"
     volumes:
       - ./scripts/workaround.sh:/tmp/workaround.sh
-      - ./exporter/jmx_prometheus_javaagent-0.20.0.jar:/opt/kafka/libs/jmx_prometheus_javaagent-0.20.0.jar
-      - ./exporter/configurations/jmx_exporter_config_kafka.yml:/opt/kafka/config/jmx_exporter_config_kafka.yml
+      - ./monitoring/exporter/jmx_prometheus_javaagent-0.20.0.jar:/opt/kafka/libs/jmx_prometheus_javaagent-0.20.0.jar
+      - ./monitoring/exporter/configurations/jmx_exporter_config_kafka.yml:/opt/kafka/config/jmx_exporter_config_kafka.yml
     command: "bash -c '/tmp/workaround.sh && /etc/confluent/docker/run'"
     healthcheck:
       test: nc -zv kafka 9092 || exit 1
       interval: 5s
       retries: 10
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
 
   connect:
     image: confluentinc/cp-kafka-connect-base:7.3.1
@@ -80,17 +70,12 @@ services:
       KAFKA_OPTS: "-javaagent:/opt/kafka/libs/jmx_prometheus_javaagent-0.20.0.jar=7072:/opt/kafka/config/jmx_exporter_config_connect.yml"
     volumes:
       - ./target:/usr/share/java/kafka-connector-pubnub
-      - ./exporter/jmx_prometheus_javaagent-0.20.0.jar:/opt/kafka/libs/jmx_prometheus_javaagent-0.20.0.jar
-      - ./exporter/configurations/jmx_exporter_config_connect.yml:/opt/kafka/config/jmx_exporter_config_connect.yml
+      - ./monitoring/exporter/jmx_prometheus_javaagent-0.20.0.jar:/opt/kafka/libs/jmx_prometheus_javaagent-0.20.0.jar
+      - ./monitoring/exporter/configurations/jmx_exporter_config_connect.yml:/opt/kafka/config/jmx_exporter_config_connect.yml
     healthcheck:
       interval: 5s
       retries: 10
       test: curl --write-out 'HTTP %{http_code}' --fail --silent --output /dev/null http://localhost:8083
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
   builder:
     image: maven:3.8-openjdk-18
     hostname: builder
@@ -98,25 +83,24 @@ services:
     volumes:
       - .:/usr/share/java/kafka-connector-pubnub
     command: "bash -c 'cd /usr/share/java/kafka-connector-pubnub; mvn clean package'"
-
-#  producer:
-#    image: confluentinc/cp-kafka:7.3.1
-#    hostname: producer
-#    container_name: producer
-#    command:
-#      - /bin/sh
-#      - -c
-#      - |
-#        while true
-#          do echo '{"timestamp":'$(date +%s)'}' | \
-#            /usr/bin/kafka-console-producer \
-#            --bootstrap-server kafka:29092 \
-#            --topic pubnub
-#          sleep 1
-#        done
-#    depends_on:
-#      kafka:
-#        condition: service_healthy
+  producer:
+    image: confluentinc/cp-kafka:7.3.1
+    hostname: producer
+    container_name: producer
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while true
+          do echo '{"timestamp":'$(date +%s)'}' | \
+            /usr/bin/kafka-console-producer \
+            --bootstrap-server kafka:29092 \
+            --topic pubnub
+          sleep 1
+        done
+    depends_on:
+      kafka:
+        condition: service_healthy
   consumer:
     image: confluentinc/cp-kafka:7.3.1
     hostname: consumer
@@ -129,8 +113,10 @@ services:
         condition: service_healthy
   prometheus:
     image: prom/prometheus:v2.30.0
+    hostname: prometheus
+    container_name: prometheus
     volumes:
-      - ./prometheus:/etc/prometheus
+      - ./monitoring/prometheus:/etc/prometheus
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
@@ -140,13 +126,14 @@ services:
     depends_on:
       - kafka
       - connect
-
   grafana:
       image: grafana/grafana:8.2.0
+      hostname: grafana
+      container_name: grafana
       volumes:
         - grafana-storage:/var/lib/grafana
-        - ./graphana/datasources:/etc/grafana/provisioning/datasources
-        - ./graphana/dashboards:/etc/grafana/provisioning/dashboards
+        - ./monitoring/grafana/config:/etc/grafana/provisioning
+        - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
       environment:
         GF_SECURITY_ADMIN_USER: admin
         GF_SECURITY_ADMIN_PASSWORD: admin
