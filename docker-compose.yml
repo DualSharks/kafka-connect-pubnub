@@ -2,7 +2,6 @@
 version: '3'
 
 services:
-
   kafka:
     image: confluentinc/cp-kafka:7.3.1
     hostname: kafka
@@ -24,8 +23,11 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      KAFKA_OPTS: "-javaagent:/opt/kafka/libs/jmx_prometheus_javaagent-0.20.0.jar=7071:/opt/kafka/config/jmx_exporter_config_kafka.yml"
     volumes:
       - ./scripts/workaround.sh:/tmp/workaround.sh
+      - ./monitoring/exporter/jmx_prometheus_javaagent-0.20.0.jar:/opt/kafka/libs/jmx_prometheus_javaagent-0.20.0.jar
+      - ./monitoring/exporter/configurations/jmx_exporter_config_kafka.yml:/opt/kafka/config/jmx_exporter_config_kafka.yml
     command: "bash -c '/tmp/workaround.sh && /etc/confluent/docker/run'"
     healthcheck:
       test: nc -zv kafka 9092 || exit 1
@@ -65,13 +67,15 @@ services:
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
       CONNECT_PLUGIN_PATH: '/usr/share/java/kafka-connector-pubnub'
+      KAFKA_OPTS: "-javaagent:/opt/kafka/libs/jmx_prometheus_javaagent-0.20.0.jar=7072:/opt/kafka/config/jmx_exporter_config_connect.yml"
     volumes:
       - ./target:/usr/share/java/kafka-connector-pubnub
+      - ./monitoring/exporter/jmx_prometheus_javaagent-0.20.0.jar:/opt/kafka/libs/jmx_prometheus_javaagent-0.20.0.jar
+      - ./monitoring/exporter/configurations/jmx_exporter_config_connect.yml:/opt/kafka/config/jmx_exporter_config_connect.yml
     healthcheck:
       interval: 5s
       retries: 10
       test: curl --write-out 'HTTP %{http_code}' --fail --silent --output /dev/null http://localhost:8083
-
   builder:
     image: maven:3.8-openjdk-18
     hostname: builder
@@ -79,7 +83,6 @@ services:
     volumes:
       - .:/usr/share/java/kafka-connector-pubnub
     command: "bash -c 'cd /usr/share/java/kafka-connector-pubnub; mvn clean package'"
-
   producer:
     image: confluentinc/cp-kafka:7.3.1
     hostname: producer
@@ -93,12 +96,11 @@ services:
             /usr/bin/kafka-console-producer \
             --bootstrap-server kafka:29092 \
             --topic pubnub
-          sleep 0.01
+          sleep 1
         done
     depends_on:
       kafka:
         condition: service_healthy
-
   consumer:
     image: confluentinc/cp-kafka:7.3.1
     hostname: consumer
@@ -109,3 +111,37 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+  prometheus:
+    image: prom/prometheus:v2.30.0
+    hostname: prometheus
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    depends_on:
+      - kafka
+      - connect
+  grafana:
+      image: grafana/grafana:8.2.0
+      hostname: grafana
+      container_name: grafana
+      volumes:
+        - grafana-storage:/var/lib/grafana
+        - ./monitoring/grafana/config:/etc/grafana/provisioning
+        - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      environment:
+        GF_SECURITY_ADMIN_USER: admin
+        GF_SECURITY_ADMIN_PASSWORD: admin
+        GF_INSTALL_PLUGINS: grafana-piechart-panel
+      ports:
+        - "3000:3000"
+      depends_on:
+        - prometheus
+volumes:
+  grafana-storage:
+  prometheus_data:
