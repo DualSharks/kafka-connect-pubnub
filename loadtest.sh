@@ -18,9 +18,6 @@ query_prometheus() {
     echo $result
 }
 
-# Initialize CSV file with headers
-echo "Timestamp,Error Rate,Throughput Rate,Speed" > $CSV_FILE
-
 # Produce messages and collect metrics
 for ((i=1; i<=NUM_RECORDS; i++)); do
     # Generate a message with the current timestamp
@@ -32,14 +29,4 @@ for ((i=1; i<=NUM_RECORDS; i++)); do
 
     # Sleep to control the throughput
     sleep $((1/THROUGHPUT))
-
-    # Query Prometheus for metrics
-    ERROR_RATE=$(query_prometheus "rate(kafka_connect_sink_task_metrics_sink_record_write_total{connector=\"$CONNECTOR_NAME\"}[1m])")
-    THROUGHPUT_RATE=$(query_prometheus "rate(kafka_connect_sink_task_metrics_sink_record_write_total{connector=\"$CONNECTOR_NAME\"}[1m])")
-    SPEED=$(query_prometheus "rate(kafka_connect_sink_task_metrics_put_batch_avg_time_ms{connector=\"$CONNECTOR_NAME\"}[1m])")
-
-    # Append metrics to CSV file
-    echo "$TIMESTAMP,$ERROR_RATE,$THROUGHPUT_RATE,$SPEED" >> $CSV_FILE
 done
-
-echo "Load test completed. Results saved to $CSV_FILE"
