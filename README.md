@@ -43,6 +43,14 @@ Now you can see the message deliveries with this web tool:
 
 You can see messages are being delivered successfully using the PubNub Web Console.
 
+## ⏹ Grafana Monitoring and Visualizations
+The Docker file also instantiates a standard visualization pipeline in order to monitor throughput for connections, tasks, and
+record success/failure. It is powered by a JMX > Prometheus > Grafana service in order to deliver a lightweight monitoring tool.
+
+![Grafana Pipeline](img/1_b6bdh5s5X_tjiim3DFqB-Q.png)
+
+The Grafana Visualiser can be found at this web tool: [Grafana Web Console](http://localhost:3000/)
+
 ## 📝 Modify Settings
 
 Edit the configuration file: `./examples/pubnub-sink-connector.json`.
